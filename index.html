@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Telegram Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  </head>
+  <body>
+    <h1>Hello Telegram 👋</h1>
+    <button onclick="sendData()">傳送訊息到 Bot</button>
+
+    <script>
+      function sendData() {
+        Telegram.WebApp.sendData("你好！這是從 Mini App 傳出去的訊息！");
+      }
+    </script>
+  </body>
+</html>
