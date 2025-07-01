@@ -156,13 +156,16 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # ✅ 修正 JobQueue 問題（若未正確建立，則手動建立）
     if not hasattr(app, 'job_queue') or app.job_queue is None:
         app.job_queue = JobQueue()
         app.job_queue.set_application(app)
         app.job_queue.start()
 
-    # ✅ 加入排程任務
-    #app.job_queue.run_repeating(lambda ctx: asyncio.create_task(scheduler(app)), interval=60, first=1)
+    # ✅ 加入更安全的排程任務：每 15 分鐘執行一次，避免觸發 OpenAI 限流
+    async def periodic_check(ctx: CallbackContext):
+        await send_good_morning(app)
+        await sweet_nag(app)
+
+    app.job_queue.run_repeating(periodic_check, interval=900, first=30)
 
     app.run_polling()
