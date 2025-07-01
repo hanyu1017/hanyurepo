@@ -12,7 +12,7 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     filters, ContextTypes, CallbackContext, JobQueue
 )
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 # === 載入環境變數 ===
 load_dotenv()
@@ -68,7 +68,7 @@ STYLE_SNIPPETS = [
     "你如果不舒服一定要跟我說，不可以忍住喔", "你說你可愛我才不信～但你真的超可愛 🐰"
 ]
 
-# === 新版 generate_reply ===
+# === 新版 generate_reply（加上重試機制） ===
 async def generate_reply(message: str, history: list) -> str:
     history_text = "\n".join([f"你說：{msg}" for msg in history[-5:]])
     style_context = "\n".join(STYLE_SNIPPETS)
@@ -82,16 +82,18 @@ async def generate_reply(message: str, history: list) -> str:
 對方說：{message}
 你會怎麼回？
 """
-
-    response = await client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=100,
-        temperature=0.8,
-    )
-    return response.choices[0].message.content.strip()
+    for i in range(3):  # 最多重試 3 次
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0.8,
+            )
+            return response.choices[0].message.content.strip()
+        except RateLimitError:
+            await asyncio.sleep(2 ** i)
+    return "伺服器現在有點忙碌😥，等等再試一次好嗎？"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global AUTHORIZED_USER_ID
