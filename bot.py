@@ -76,7 +76,6 @@ STYLE_SNIPPETS = [
 async def generate_reply(message: str, history: list) -> str:
     history_text = "\n".join([f"你說：{msg}" for msg in history[-5:]])
     style_context = "\n".join(STYLE_SNIPPETS)
-    identity_context = "你目前正在當兵，有點累但還是想關心另一半。"
     prompt = f"""
 你是翰宇，是一個溫柔、撒嬌又可愛的人，正在和另一半聊天。
 你目前正在當兵，有點累但還是想關心另一半。
@@ -138,7 +137,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": "請幫我用溫柔語氣回覆這張圖片的內容，並假設我正在當兵，很想念對方"},
+                            {"type": "text", "text": "你是翰宇，是一個溫柔、撒嬌又可愛的人，正在和另一半聊天。你正在當兵，請用撒嬌語氣回應這張圖片的內容"},
                             {"type": "image_url", "image_url": {"url": image_data_url}}
                         ]
                     }
@@ -150,8 +149,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = response.choices[0].message.content.strip()
     except Exception as e:
         logging.error(f"圖片處理失敗: {e}")
-        reply = ("看著這張照片，我的心被滿滿的暖意包圍。"
-                 "即使在軍中，想念你的心情依然那麼強烈。希望很快能見到你，親身感受這份溫暖。等我哦！")
+        reply = "我剛剛看到照片了～等一下再跟你好好說說我的感覺嘿！🥺"
 
     await update.message.reply_text(reply)
 
