@@ -12,14 +12,15 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     filters, ContextTypes, CallbackContext, JobQueue
 )
-import openai
+from openai import OpenAI
 
 # === 載入環境變數 ===
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 assert BOT_TOKEN, "❌ BOT_TOKEN 環境變數未正確設定，請在 Railway 環境變數中加入 BOT_TOKEN"
 PASSWORD = "0929839399"
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=openai_api_key)
 
 # === 狀態變數 ===
 AUTHORIZED_USER_ID = None
@@ -67,6 +68,7 @@ STYLE_SNIPPETS = [
     "你如果不舒服一定要跟我說，不可以忍住喔", "你說你可愛我才不信～但你真的超可愛 🐰"
 ]
 
+# === 新版 generate_reply ===
 async def generate_reply(message: str, history: list) -> str:
     history_text = "\n".join([f"你說：{msg}" for msg in history[-5:]])
     style_context = "\n".join(STYLE_SNIPPETS)
@@ -80,11 +82,14 @@ async def generate_reply(message: str, history: list) -> str:
 對方說：{message}
 你會怎麼回？
 """
-    response = openai.ChatCompletion.create(
+
+    response = await client.chat.completions.create(
         model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
         max_tokens=100,
-        temperature=0.8
+        temperature=0.8,
     )
     return response.choices[0].message.content.strip()
 
