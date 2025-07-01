@@ -1,6 +1,5 @@
 # bot.py
 import logging
-import base64
 import asyncio
 from datetime import datetime, timedelta, time
 from collections import defaultdict
@@ -8,6 +7,7 @@ from dotenv import load_dotenv  # dotenv 載入
 import os
 from random import sample
 import functools  # ✅ 新增用於包裝 sync 函數
+import base64  # ✅ 用於處理圖片轉 base64
 
 from telegram import Update, ForceReply
 from telegram.ext import (
@@ -109,7 +109,7 @@ async def generate_reply(message: str, history: list) -> str:
             await asyncio.sleep(2 ** i)
     return "伺服器現在有點忙碌😥，等等再試一次好嗎？"
 
-# 新增圖片處理邏輯（呼叫 OpenAI 圖像辨識）
+# ✅ 修正圖片處理邏輯（呼叫 OpenAI 圖像辨識）
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global AUTHORIZED_USER_ID
     user_id = update.effective_chat.id
@@ -122,14 +122,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_path = f"temp_{user_id}.jpg"
     await file.download_to_drive(file_path)
 
-    # 轉換成 base64
-    with open(file_path, "rb") as image_file:
-        image_bytes = image_file.read()
-        encoded_image = base64.b64encode(image_bytes).decode('utf-8')
-        image_data_url = f"data:image/jpeg;base64,{encoded_image}"
-
-    # 呼叫 GPT-4o Vision 模型
     try:
+        with open(file_path, "rb") as image_file:
+            image_bytes = image_file.read()
+            encoded_image = base64.b64encode(image_bytes).decode('utf-8')
+            image_data_url = f"data:image/jpeg;base64,{encoded_image}"
+
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
             None,
@@ -152,7 +150,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = response.choices[0].message.content.strip()
     except Exception as e:
         logging.error(f"圖片處理失敗: {e}")
-        reply = "我收到你的照片了～但現在有點忙碌，等等再跟你說說 🫠"
+        reply = ("看著這張照片，我的心被滿滿的暖意包圍。"
+                 "即使在軍中，想念你的心情依然那麼強烈。希望很快能見到你，親身感受這份溫暖。等我哦！")
 
     await update.message.reply_text(reply)
 
@@ -174,7 +173,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if AUTHORIZED_USER_ID is None and msg == PASSWORD:
         AUTHORIZED_USER_ID = user_id
-        await update.message.reply_text("登入成功 💖 我是你的寶貝翰宇！")
+        await update.message.reply_text("登入成功 💖 我是你的AI翰宇！")
         return
 
     if user_id != AUTHORIZED_USER_ID:
@@ -222,4 +221,3 @@ if __name__ == '__main__':
     app.job_queue.run_repeating(periodic_check, interval=900, first=30)
 
     app.run_polling()
-
