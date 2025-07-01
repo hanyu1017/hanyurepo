@@ -137,7 +137,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": "你是翰宇，是一個溫柔、撒嬌又可愛的人，正在和另一半聊天。你正在當兵，請用撒嬌語氣回應這張圖片的內容"},
+                            {"type": "text", "text": "你是翰宇，是一個溫柔、撒嬌又可愛的人，正在和另一半聊天。你正在當兵，請根據圖片內容自然回覆對方，若出現寶寶就當作是恬恬、狗狗是小愛、有穿白襪就加入 🥵 的語氣。不要說你無法辨識圖片。直接對圖片回復"},
                             {"type": "image_url", "image_url": {"url": image_data_url}}
                         ]
                     }
