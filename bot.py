@@ -1,5 +1,6 @@
 # bot.py
 import logging
+import base64
 import asyncio
 from datetime import datetime, timedelta, time
 from collections import defaultdict
@@ -118,25 +119,37 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_path = f"temp_{user_id}.jpg"
     await file.download_to_drive(file_path)
 
+    # 轉換成 base64
     with open(file_path, "rb") as image_file:
-        try:
-            loop = asyncio.get_running_loop()
-            response = await loop.run_in_executor(
-                None,
-                functools.partial(
-                    client.chat.completions.create,
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "user", "content": "請幫我用溫柔語氣回覆這張圖片的內容"},
-                        {"role": "user", "image": image_file}
-                    ],
-                    max_tokens=100,
-                    temperature=0.7,
-                )
+        image_bytes = image_file.read()
+        encoded_image = base64.b64encode(image_bytes).decode('utf-8')
+        image_data_url = f"data:image/jpeg;base64,{encoded_image}"
+
+    # 呼叫 GPT-4o Vision 模型
+    try:
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None,
+            functools.partial(
+                client.chat.completions.create,
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "請幫我用溫柔語氣回覆這張圖片的內容，並假設我正在當兵，很想念對方"},
+                            {"type": "image_url", "image_url": {"url": image_data_url}}
+                        ]
+                    }
+                ],
+                max_tokens=150,
+                temperature=0.8,
             )
-            reply = response.choices[0].message.content.strip()
-        except Exception:
-            reply = "我收到你的照片了～但現在有點忙碌，等等再跟你說說 🫠"
+        )
+        reply = response.choices[0].message.content.strip()
+    except Exception as e:
+        logging.error(f"圖片處理失敗: {e}")
+        reply = "我收到你的照片了～但現在有點忙碌，等等再跟你說說 🫠"
 
     await update.message.reply_text(reply)
 
@@ -158,7 +171,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if AUTHORIZED_USER_ID is None and msg == PASSWORD:
         AUTHORIZED_USER_ID = user_id
-        await update.message.reply_text("登入成功 💖 我是你的AI翰宇！")
+        await update.message.reply_text("登入成功 💖 我是你的寶貝翰宇！")
         return
 
     if user_id != AUTHORIZED_USER_ID:
