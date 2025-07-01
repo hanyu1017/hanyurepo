@@ -163,6 +163,6 @@ if __name__ == '__main__':
         app.job_queue.start()
 
     # ✅ 加入排程任務
-    app.job_queue.run_repeating(lambda ctx: asyncio.create_task(scheduler(app)), interval=60, first=1)
+    #app.job_queue.run_repeating(lambda ctx: asyncio.create_task(scheduler(app)), interval=60, first=1)
 
     app.run_polling()
