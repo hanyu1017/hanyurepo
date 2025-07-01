@@ -6,6 +6,7 @@ from collections import defaultdict
 from dotenv import load_dotenv  # dotenv 載入
 import os
 from random import sample
+import functools  # ✅ 新增用於包裝 sync 函數
 
 from telegram import Update, ForceReply
 from telegram.ext import (
@@ -68,7 +69,7 @@ STYLE_SNIPPETS = [
     "你如果不舒服一定要跟我說，不可以忍住喔", "你說你可愛我才不信～但你真的超可愛 🐰"
 ]
 
-# === 新版 generate_reply（加上重試機制） ===
+# === 修正版 generate_reply（用 run_in_executor 包裝同步呼叫） ===
 async def generate_reply(message: str, history: list) -> str:
     history_text = "\n".join([f"你說：{msg}" for msg in history[-5:]])
     style_context = "\n".join(STYLE_SNIPPETS)
@@ -82,13 +83,18 @@ async def generate_reply(message: str, history: list) -> str:
 對方說：{message}
 你會怎麼回？
 """
+    loop = asyncio.get_running_loop()
     for i in range(3):  # 最多重試 3 次
         try:
-            response = await client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=100,
-                temperature=0.8,
+            response = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    client.chat.completions.create,
+                    model="gpt-4o",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=100,
+                    temperature=0.8,
+                )
             )
             return response.choices[0].message.content.strip()
         except RateLimitError:
@@ -169,3 +175,4 @@ if __name__ == '__main__':
     app.job_queue.run_repeating(periodic_check, interval=900, first=30)
 
     app.run_polling()
+
