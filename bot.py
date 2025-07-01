@@ -14,6 +14,7 @@ from telegram.ext import (
     filters, ContextTypes, CallbackContext, JobQueue
 )
 from openai import OpenAI, RateLimitError
+from telegram.constants import ChatAction
 
 # === 載入環境變數 ===
 load_dotenv()
@@ -27,6 +28,7 @@ client = OpenAI(api_key=openai_api_key)
 AUTHORIZED_USER_ID = None
 LAST_SEEN = {}  # {chat_id: datetime}
 CHAT_HISTORY = defaultdict(list)  # {chat_id: [messages]}
+IN_MILITARY_SERVICE = True  # ✅ 新增當兵狀態
 
 # === 早安與撒嬌訊息 ===
 GOOD_MORNING_TEXTS = [
@@ -73,8 +75,10 @@ STYLE_SNIPPETS = [
 async def generate_reply(message: str, history: list) -> str:
     history_text = "\n".join([f"你說：{msg}" for msg in history[-5:]])
     style_context = "\n".join(STYLE_SNIPPETS)
+    identity_context = "你目前正在當兵，有點累但還是想關心另一半。"
     prompt = f"""
 你是翰宇，是一個溫柔、撒嬌又可愛的人，正在和另一半聊天。
+你目前正在當兵，有點累但還是想關心另一半。
 請模仿以下語氣自然回覆：
 {style_context}
 
@@ -101,6 +105,41 @@ async def generate_reply(message: str, history: list) -> str:
             await asyncio.sleep(2 ** i)
     return "伺服器現在有點忙碌😥，等等再試一次好嗎？"
 
+# 新增圖片處理邏輯（呼叫 OpenAI 圖像辨識）
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global AUTHORIZED_USER_ID
+    user_id = update.effective_chat.id
+    if user_id != AUTHORIZED_USER_ID:
+        await update.message.reply_text("你不是授權使用者 🛑")
+        return
+
+    await update.message.reply_chat_action(ChatAction.TYPING)
+    file = await update.message.photo[-1].get_file()
+    file_path = f"temp_{user_id}.jpg"
+    await file.download_to_drive(file_path)
+
+    with open(file_path, "rb") as image_file:
+        try:
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    client.chat.completions.create,
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "user", "content": "請幫我用溫柔語氣回覆這張圖片的內容"},
+                        {"role": "user", "image": image_file}
+                    ],
+                    max_tokens=100,
+                    temperature=0.7,
+                )
+            )
+            reply = response.choices[0].message.content.strip()
+        except Exception:
+            reply = "我收到你的照片了～但現在有點忙碌，等等再跟你說說 🫠"
+
+    await update.message.reply_text(reply)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global AUTHORIZED_USER_ID
     user_id = update.effective_chat.id
@@ -117,7 +156,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
     msg = update.message.text
 
-    # 密碼驗證
     if AUTHORIZED_USER_ID is None and msg == PASSWORD:
         AUTHORIZED_USER_ID = user_id
         await update.message.reply_text("登入成功 💖 我是你的AI翰宇！")
@@ -148,26 +186,19 @@ async def sweet_nag(app):
             text = sample(SWEET_NAGS, 1)[0]
             await app.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=text)
 
-async def scheduler(app):
-    while True:
-        await send_good_morning(app)
-        await sweet_nag(app)
-        await asyncio.sleep(60)
-
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
     if not hasattr(app, 'job_queue') or app.job_queue is None:
         app.job_queue = JobQueue()
         app.job_queue.set_application(app)
         app.job_queue.start()
 
-    # ✅ 加入更安全的排程任務：每 15 分鐘執行一次，避免觸發 OpenAI 限流
     async def periodic_check(ctx: CallbackContext):
         await send_good_morning(app)
         await sweet_nag(app)
