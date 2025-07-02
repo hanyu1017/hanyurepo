@@ -87,9 +87,13 @@ async def generate_reply(message: str, history: list) -> str:
     global LOVE_INDEX
     if "想你" in message:
         if LOVE_INDEX < len(LOVE_SURPRISES):
+            now = datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8)))
+            discharge_date = datetime(2025, 7, 18, tzinfo=timezone(timedelta(hours=8)))
+            days_left = (discharge_date - now).days
+            countdown = f"乖乖，先抱抱～🥺 我也超想你的... 不過再過 {days_left} 天我就退伍啦！"
             surprise = LOVE_SURPRISES[LOVE_INDEX]
             LOVE_INDEX += 1
-            return surprise
+            return f"{countdown}\n{surprise}"
         else:
             return "今天的驚喜都給完啦～你怎麼那麼貪心啦 🥰"
 
@@ -200,6 +204,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     CHAT_HISTORY[user_id].append(reply)
     await update.message.reply_text(reply)
 
+# === 修改時區為 UTC+8 ===
 async def send_good_morning(app):
     if AUTHORIZED_USER_ID:
         now = datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8))).time()
@@ -211,7 +216,7 @@ async def sweet_nag(app):
     if AUTHORIZED_USER_ID:
         now = datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8)))
         last = LAST_SEEN.get(AUTHORIZED_USER_ID)
-        if last and (now - last > timedelta(minutes=60)) and now.time() < time(23, 0):
+        if last and (now - last > timedelta(hours=1)) and now.time() < time(23, 0):
             text = sample(SWEET_NAGS, 1)[0]
             await app.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=text)
 
