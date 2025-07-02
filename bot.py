@@ -54,6 +54,7 @@ LOVE_SURPRISES = [
 ]
 LOVE_INDEX = 0
 
+
 # === GPT Prompt ===
 STYLE_SNIPPETS = [
     "晚安安～", "晚安安安", "早安安～今天也要加油喔 ☀️", "早安安安",  "到現在沒理我",
