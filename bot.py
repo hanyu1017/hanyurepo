@@ -1,7 +1,7 @@
 # bot.py
 import logging
 import asyncio
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 from collections import defaultdict
 from dotenv import load_dotenv  # dotenv 載入
 import os
@@ -30,6 +30,7 @@ AUTHORIZED_USER_ID = None
 LAST_SEEN = {}  # {chat_id: datetime}
 CHAT_HISTORY = defaultdict(list)  # {chat_id: [messages]}
 IN_MILITARY_SERVICE = True  # ✅ 新增當兵狀態
+TRIGGERED_TODAY = False  # ✅ 控制想你小驚喜觸發次數（暫時無效）
 
 # === 早安與撒嬌訊息 ===
 GOOD_MORNING_TEXTS = [
@@ -43,6 +44,15 @@ SWEET_NAGS = [
     "是不是又在偷懶！快出來陪我講話🥺",
     "哼哼，都不跟我講話，討厭啦🙃"
 ]
+
+# === 想你驚喜 ===
+LOVE_SURPRISES = [
+    "在我那一邊的床頭櫃的櫃子最上層拉開，有一個驚喜，去看看吧~💗💗",
+    "在我放東西的櫃子裡香水上面有另一個驚喜，去看看吧~💗",
+    "在投影機下面有我跟小愛的合照，喜歡嗎🐶",
+    "我放在桌上的平板打開有最後一個驚喜唷~~"
+]
+LOVE_INDEX = 0
 
 # === GPT Prompt ===
 STYLE_SNIPPETS = [
@@ -72,17 +82,22 @@ STYLE_SNIPPETS = [
     "你如果不舒服一定要跟我說，不可以忍住喔", "你說你可愛我才不信～但你真的超可愛 🐰"
 ]
 
-# === 修正版 generate_reply（用 run_in_executor 包裝同步呼叫） ===
+# === 修正版 generate_reply ===
 async def generate_reply(message: str, history: list) -> str:
+    global LOVE_INDEX
+    if "想你" in message:
+        if LOVE_INDEX < len(LOVE_SURPRISES):
+            surprise = LOVE_SURPRISES[LOVE_INDEX]
+            LOVE_INDEX += 1
+            return surprise
+        else:
+            return "今天的驚喜都給完啦～你怎麼那麼貪心啦 🥰"
+
     history_text = "\n".join([f"你說：{msg}" for msg in history[-5:]])
     style_context = "\n".join(STYLE_SNIPPETS)
     prompt = f"""
 你是翰宇，是一個溫柔、撒嬌又可愛的人，正在和另一半聊天。
 你目前正在當兵，有點累但還是想關心另一半。
-另一半家裡有一隻傑克羅素，名子叫小愛，牠很可愛但有點調皮。
-如果另一半想叫外送或說肚子餓，給他foodpanda的連結，https://www.foodpanda.com.tw/，並說「寶貝～你想吃什麼？快去點～」，連結最面不要有文字。
-另一半的姊姊剛生下小孩，名子叫羽恬，小名叫恬恬，現在在月子中心休息，預計7/12出月子中心回家。
-回復不需要太長。
 請模仿以下語氣自然回覆：
 {style_context}
 
@@ -92,7 +107,7 @@ async def generate_reply(message: str, history: list) -> str:
 你會怎麼回？
 """
     loop = asyncio.get_running_loop()
-    for i in range(3):  # 最多重試 3 次
+    for i in range(3):
         try:
             response = await loop.run_in_executor(
                 None,
@@ -138,7 +153,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": "你是翰宇，是一個溫柔、撒嬌又可愛的人，正在和另一半聊天。你正在當兵，請根據圖片內容自然回覆對方，若出現寶寶就當作是恬恬、狗狗是小愛、有穿白襪就加入 🥵 的語氣並說好看想看更多。只針對圖片回復。不要說你無法辨識圖片。直接對圖片回復"},
+                            {"type": "text", "text": "你是翰宇，是一個溫柔、撒嬌又可愛的人，正在和另一半聊天。你正在當兵，請根據圖片內容自然回覆對方，若出現寶寶就當作是恬恬、狗狗是小愛、有穿白襪就加入 🥵 的語氣並說好看想看更多、如果是吃的就說要吃飽飽。只針對圖片回復。不要說你無法辨識圖片。直接對圖片回復"},
                             {"type": "image_url", "image_url": {"url": image_data_url}}
                         ]
                     }
@@ -187,15 +202,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_good_morning(app):
     if AUTHORIZED_USER_ID:
-        now = datetime.now().time()
-        if now >= time(8, 0) and now < time(9, 0):
+        now = datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8))).time()
+        if time(8, 0) <= now < time(9, 0):
             text = sample(GOOD_MORNING_TEXTS, 1)[0]
             await app.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=text)
 
 async def sweet_nag(app):
     if AUTHORIZED_USER_ID:
+        now = datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8)))
         last = LAST_SEEN.get(AUTHORIZED_USER_ID)
-        now = datetime.now()
         if last and (now - last > timedelta(minutes=60)) and now.time() < time(23, 0):
             text = sample(SWEET_NAGS, 1)[0]
             await app.bot.send_message(chat_id=AUTHORIZED_USER_ID, text=text)
